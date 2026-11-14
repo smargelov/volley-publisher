@@ -1,7 +1,7 @@
 // Single doorway to the shared core that lives in the repository root.
 // It must stay free of `@raycast/api` imports: the detached worker loads it too.
 export { setAssetsDir } from '../../../src/core/assets.js'
-export { formatDuration, probeFile, type MediaFile } from '../../../src/core/media.js'
+export { formatDuration, probeFile, type MediaFile, type SourceFile } from '../../../src/core/media.js'
 export {
   loadStore,
   playlistKey,
@@ -28,6 +28,7 @@ export {
   findExpiredSources,
   findLocalFile,
   listChannelVideos,
+  listPendingUploads,
   rememberAnswers,
   resolvePlayersAuto,
   tidyInbox,
@@ -43,4 +44,5 @@ export {
   type Playlist,
   type PrivacyStatus,
 } from '../../../src/core/youtube.js'
+export { uploadVideo } from '../../../src/core/upload.js'
 export { runThumbnailSession } from '../../../src/ui/cropSession.js'

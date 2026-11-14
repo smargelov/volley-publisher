@@ -3,8 +3,8 @@ import { existsSync } from "node:fs";
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
 import { dirname, join } from "node:path";
 import { DONE_DIR, INBOX_DIR } from "./config.js";
-import type { MediaFile } from "./media.js";
-import type { EventType, SessionAnswers, Store, Venue, VideoAnswers } from "./store.js";
+import { listVideoFiles, type MediaFile, type SourceFile } from "./media.js";
+import { loadStore, type EventType, type SessionAnswers, type Store, type Venue, type VideoAnswers } from "./store.js";
 import {
   buildDescription,
   buildOverlay,
@@ -43,10 +43,28 @@ export function findLocalFile(video: VideoInfo): string | undefined {
   return [join(INBOX_DIR, video.fileName), join(DONE_DIR, video.fileName)].find((p) => existsSync(p));
 }
 
+/**
+ * Videos uploaded by this tool are matched to their source files through the store,
+ * because YouTube does not always keep the original file name for API uploads.
+ */
+export function withUploadedFileNames(videos: VideoInfo[], uploads: Record<string, string>): VideoInfo[] {
+  return videos.map((video) => {
+    const fileName = uploads[video.id];
+    return fileName ? { ...video, fileName } : video;
+  });
+}
+
 /** Lists recent channel videos, newest first, with their local source files. */
 export async function listChannelVideos(): Promise<ChannelVideo[]> {
-  const videos = await listRecentVideos("uploads", RECENT_VIDEOS_LIMIT);
+  const [recent, store] = await Promise.all([listRecentVideos("uploads", RECENT_VIDEOS_LIMIT), loadStore()]);
+  const videos = withUploadedFileNames(recent, store.uploads);
   return videos.map((video) => ({ video, localPath: findLocalFile(video), raw: isUnprocessed(video) }));
+}
+
+/** Inbox files that no recent channel video was made from: they still have to be uploaded. */
+export async function listPendingUploads(videos: VideoInfo[]): Promise<SourceFile[]> {
+  const onChannel = new Set(videos.map((video) => video.fileName));
+  return (await listVideoFiles(INBOX_DIR)).filter((file) => !onChannel.has(file.fileName));
 }
 
 /**

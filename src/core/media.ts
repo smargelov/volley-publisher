@@ -100,6 +100,29 @@ export async function probeFile(path: string): Promise<MediaFile> {
   };
 }
 
+export interface SourceFile {
+  path: string;
+  fileName: string;
+  sizeBytes: number;
+}
+
+/** Lists video files in a directory (non-recursive) without probing them; empty when the folder is missing. */
+export async function listVideoFiles(dir: string): Promise<SourceFile[]> {
+  let names: string[];
+  try {
+    names = await readdir(dir);
+  } catch {
+    return [];
+  }
+  const videos = names.filter((n) => !n.startsWith(".") && VIDEO_EXTENSIONS.has(extname(n).toLowerCase())).sort();
+  return Promise.all(
+    videos.map(async (fileName) => {
+      const path = join(dir, fileName);
+      return { path, fileName, sizeBytes: (await stat(path)).size };
+    }),
+  );
+}
+
 /** Probes every video file in a directory (non-recursive), ordered by recording time. */
 export async function scanDirectory(dir: string): Promise<MediaFile[]> {
   const names = (await readdir(dir)).filter(

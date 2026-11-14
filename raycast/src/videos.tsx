@@ -13,19 +13,34 @@ import {
   Toast,
 } from '@raycast/api'
 import { usePromise } from '@raycast/utils'
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { DetailsForm } from './components/DetailsForm'
 import { Review } from './components/Review'
-import { setPrivacyStatus, tidyInbox, type ChannelVideo } from './lib/core'
+import {
+  listPendingUploads,
+  setPrivacyStatus,
+  tidyInbox,
+  type ChannelVideo,
+  type PrivacyStatus,
+  type SourceFile,
+} from './lib/core'
 import { maintenanceSummary, runMaintenance } from './lib/maintenance'
+import { isUploadRunning, readUploadStatus, type UploadStatus } from './lib/upload-status'
+import { cancelUpload, startUpload } from './lib/uploader'
 
 const DONE_LIMIT = 15
+/** How often upload progress is re-read from the status files while something is uploading. */
+const UPLOAD_POLL_MS = 2000
+/** A finished upload can take a while to show up in the channel list; the file is not offered again meanwhile. */
+const UPLOADED_GRACE_MS = 30 * 60_000
+const GIB = 1024 ** 3
 
 async function loadVideos() {
   const result = await runMaintenance()
   const summary = maintenanceSummary(result)
   if (summary) await showToast({ style: Toast.Style.Success, title: summary })
-  return { videos: result.videos, describedIds: new Set(Object.keys(result.store.videos)) }
+  const pending = await listPendingUploads(result.videos.map((item) => item.video))
+  return { videos: result.videos, pending, describedIds: new Set(Object.keys(result.store.videos)) }
 }
 
 /** Passed by the deeplink the thumbnail editor opens when it is closed. */
@@ -37,6 +52,27 @@ export default function Command({ launchContext }: LaunchProps<{ launchContext?:
   const { data, isLoading, error, revalidate } = usePromise(loadVideos)
   // Coming back from the thumbnail editor lands straight on the review of that video.
   const [reviewId, setReviewId] = useState(launchContext?.videoId)
+
+  const pending = data?.pending ?? []
+  const statuses = new Map(pending.map((file) => [file.path, readUploadStatus(file.path)]))
+  const uploadingPaths = pending.filter((file) => isUploadRunning(statuses.get(file.path))).map((file) => file.path)
+  const uploading = uploadingPaths.join('\n')
+
+  // While something is uploading, progress is re-read from the status files.
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    if (!uploading) return
+    const timer = setInterval(() => setTick((tick) => tick + 1), UPLOAD_POLL_MS)
+    return () => clearInterval(timer)
+  }, [uploading])
+
+  // An upload that has just finished turns into a channel video: reload the list.
+  const wasUploading = useRef('')
+  useEffect(() => {
+    const finished = wasUploading.current.split('\n').some((path) => path && !uploadingPaths.includes(path))
+    wasUploading.current = uploading
+    if (finished) revalidate()
+  }, [uploading])
 
   const reviewItem = reviewId ? data?.videos.find((item) => item.video.id === reviewId) : undefined
   if (reviewItem) {
@@ -63,8 +99,17 @@ export default function Command({ launchContext }: LaunchProps<{ launchContext?:
           description={`${error.message}\nIf the token has expired, run "npm run volley -- auth" in the project folder.`}
         />
       ) : (
-        <List.EmptyView icon={Icon.Video} title="No videos yet" description="Upload videos in YouTube Studio first." />
+        <List.EmptyView
+          icon={Icon.Video}
+          title="No videos yet"
+          description="Put source videos into the inbox folder to upload them from here."
+        />
       )}
+      <List.Section title="Waiting for Upload" subtitle={String(pending.length)}>
+        {pending.map((file) => (
+          <UploadItem key={file.path} file={file} status={statuses.get(file.path)} onChange={revalidate} />
+        ))}
+      </List.Section>
       <List.Section title="Waiting for Details" subtitle={String(waiting.length)}>
         {waiting.map((item) => (
           <VideoItem
@@ -81,6 +126,88 @@ export default function Command({ launchContext }: LaunchProps<{ launchContext?:
         ))}
       </List.Section>
     </List>
+  )
+}
+
+const UPLOAD_PRIVACY_TITLES: Record<PrivacyStatus, string> = {
+  private: 'Private — Only You',
+  unlisted: 'Unlisted — Anyone with the Link',
+  public: 'Public — Subscribers Are Notified',
+}
+
+function percent(status: UploadStatus): string {
+  return status.totalBytes > 0 ? `${Math.floor((status.sentBytes / status.totalBytes) * 100)}%` : '0%'
+}
+
+/** A source file in the inbox that is not on the channel yet. */
+function UploadItem({ file, status, onChange }: { file: SourceFile; status?: UploadStatus; onChange: () => void }) {
+  const running = isUploadRunning(status)
+  // The worker is gone but never reported an outcome: it was killed or the Mac went to sleep.
+  const interrupted = status?.state === 'running' && !running
+  const justUploaded = status?.state === 'done' && Date.now() - new Date(status.updatedAt).getTime() < UPLOADED_GRACE_MS
+  const resumable = interrupted || status?.state === 'cancelled' || status?.state === 'error'
+
+  const accessories: List.Item.Accessory[] = [{ text: `${(file.sizeBytes / GIB).toFixed(2)} GB` }]
+  if (running && status) accessories.push({ tag: { value: `uploading ${percent(status)}`, color: Color.Blue } })
+  else if (justUploaded)
+    accessories.push({ tag: { value: 'uploaded', color: Color.Green }, tooltip: 'Appears below shortly' })
+  else if (status?.state === 'error')
+    accessories.push({ tag: { value: 'failed', color: Color.Red }, tooltip: status.message })
+  else if (interrupted || status?.state === 'cancelled')
+    accessories.push({ tag: { value: 'paused', color: Color.Orange } })
+
+  function upload(privacy: PrivacyStatus) {
+    try {
+      startUpload({ videoPath: file.path, privacy }, file.sizeBytes)
+      void showToast({ style: Toast.Style.Success, title: 'Upload started', message: 'It continues in the background' })
+      onChange()
+    } catch (error) {
+      void showToast({
+        style: Toast.Style.Failure,
+        title: 'Could not start the upload',
+        message: error instanceof Error ? error.message : String(error),
+      })
+    }
+  }
+
+  return (
+    <List.Item
+      icon={running ? Icon.Upload : Icon.Document}
+      title={file.fileName}
+      accessories={accessories}
+      actions={
+        <ActionPanel>
+          {running && (
+            <Action
+              title="Pause Upload"
+              icon={Icon.Pause}
+              onAction={() => {
+                cancelUpload(file.path)
+                onChange()
+              }}
+            />
+          )}
+          {!running && !justUploaded && resumable && status && (
+            // The visibility was fixed when the upload started, so resuming keeps it.
+            <Action title="Resume Upload" icon={Icon.Upload} onAction={() => upload(status.privacy)} />
+          )}
+          {!running && !justUploaded && !resumable && (
+            <ActionPanel.Submenu title="Upload to YouTube" icon={Icon.Upload}>
+              {(Object.keys(UPLOAD_PRIVACY_TITLES) as PrivacyStatus[]).map((privacy) => (
+                <Action key={privacy} title={UPLOAD_PRIVACY_TITLES[privacy]} onAction={() => upload(privacy)} />
+              ))}
+            </ActionPanel.Submenu>
+          )}
+          <Action.ShowInFinder path={file.path} />
+          <Action
+            title="Refresh"
+            icon={Icon.ArrowClockwise}
+            shortcut={Keyboard.Shortcut.Common.Refresh}
+            onAction={onChange}
+          />
+        </ActionPanel>
+      }
+    />
   )
 }
 

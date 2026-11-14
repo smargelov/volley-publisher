@@ -24,7 +24,7 @@ Commands:
   auth                 Authorize access to the YouTube channel (opens the browser)
   whoami               Show the channel the stored token belongs to
   list                 List recent videos of the channel with their statuses
-  upload [file]        Upload a source video as private (resumable; default: pick from inbox)
+  upload [file]        Upload a source video (resumable; default: pick from inbox)
   apply [videoId]      Fill in title, description, thumbnail and playlist for a video
   thumb <file> [m:ss]  Make a thumbnail only: pick a frame and crop it in the browser
   translate <text>     Translate a text to English (checks the OpenRouter key)
@@ -38,7 +38,8 @@ Options for "list":
   --limit <n>                How many videos to show (default: 15, max: 50)
 
 Options for "upload":
-  --yes, -y                  Do not ask for confirmation
+  --privacy <private|unlisted|public>  Visibility of the new video (asked when omitted)
+  --yes, -y                            Do not ask anything; private unless --privacy is given
 
 Options for "apply":
   --privacy <private|unlisted|public>  Visibility to set (default: unlisted)

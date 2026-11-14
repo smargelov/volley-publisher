@@ -9,8 +9,8 @@ and no shared service.
 
 ## What it does
 
-1. **Upload** — sends a source video file from a local folder to the channel as a
-   private video, using the resumable upload protocol.
+1. **Upload** — sends a source video file from a local folder to the channel with the
+   visibility you choose (private, unlisted or public), using the resumable upload protocol.
 2. **Describe** — asks a few questions (event type, venue, teams, stage, score), builds
    an English title, description and tags, and sets the recording date. Venues, event
    types and player name spellings are remembered for the next video.
@@ -39,14 +39,8 @@ The tool does not ship with API credentials; each user brings their own.
 4. Create an OAuth client of type **Desktop app** and download its JSON file.
 5. Save the file as `~/.config/volley-publisher/client_secret.json`.
 
-Two things to know:
-
-- While the OAuth app is in "Testing" status, the refresh token expires after 7 days;
-  run `auth` again when that happens.
-- Videos uploaded through the API by a project that has not passed
-  [YouTube's API compliance audit](https://support.google.com/youtube/contact/yt_api_form)
-  stay locked as private. Until your project passes it, upload through YouTube Studio
-  and use this tool for everything else — that part works without the audit.
+While the OAuth app is in "Testing" status, the refresh token expires after 7 days; run
+`auth` again when that happens, or publish the app on the Audience page to lift the limit.
 
 ### 2. The tool
 
@@ -85,7 +79,7 @@ Run as `npm run volley -- <command>`.
 | `auth` | Authorize access to the channel (opens the browser) |
 | `whoami` | Show the authorized channel |
 | `scan [dir]` | Show local source videos and their metadata |
-| `upload [file] [--yes]` | Upload a source video as private; without a file, pick one from the inbox |
+| `upload [file] [--privacy private\|unlisted\|public] [--yes]` | Upload a source video; without a file, pick one from the inbox |
 | `list [--source uploads\|search] [--limit n]` | List recent videos with their statuses |
 | `apply [videoId] [--privacy private\|unlisted\|public]` | Fill in title, description, thumbnail and playlist |
 | `thumb <file> [m:ss]` | Make a thumbnail only |
@@ -104,7 +98,8 @@ An interrupted upload continues from the last stored byte when `upload` is run a
 the same file. Failed chunks are retried with exponential backoff.
 
 The `raycast/` folder holds a Raycast extension with the same workflow on top of the
-same core.
+same core: files in the inbox are listed under "Waiting for Upload", an upload runs in the
+background with its progress shown in the list, and it can be paused and resumed.
 
 ## How it uses the YouTube Data API
 

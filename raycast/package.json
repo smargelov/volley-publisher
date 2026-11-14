@@ -98,7 +98,7 @@
     "typescript": "^5.8.2"
   },
   "scripts": {
-    "build:worker": "esbuild src/worker/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=assets/editor-worker.js --log-level=warning",
+    "build:worker": "esbuild src/worker/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=assets/editor-worker.js --log-level=warning && esbuild src/worker/upload.ts --bundle --platform=node --target=node22 --format=cjs --outfile=assets/upload-worker.js --log-level=warning",
     "prebuild": "npm run build:worker",
     "build": "ray build -e dist",
     "predev": "npm run build:worker",

@@ -4,6 +4,7 @@
 # build output
 /dist
 /assets/editor-worker.js
+/assets/upload-worker.js
 
 # Raycast specific files
 raycast-env.d.ts

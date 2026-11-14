@@ -4,10 +4,12 @@ import { INBOX_DIR } from "../core/config.js";
 import { formatDuration, probeFile, scanDirectory, type MediaFile } from "../core/media.js";
 import { loadStore, saveStore } from "../core/store.js";
 import { uploadVideo } from "../core/upload.js";
+import type { PrivacyStatus } from "../core/youtube.js";
 import { choose, confirm } from "./prompts.js";
 
 const GIB = 1024 ** 3;
 const MIB = 1024 ** 2;
+const PRIVACY_VALUES: PrivacyStatus[] = ["private", "unlisted", "public"];
 /** YouTube plays at most 60 fps; higher frame rates are converted on their side. */
 const MAX_PLAYBACK_FPS = 60;
 
@@ -55,15 +57,35 @@ function createProgressPrinter(): (sentBytes: number, totalBytes: number) => voi
   };
 }
 
+/** Takes the visibility from --privacy, or asks for it; private is the default. */
+async function pickPrivacy(flag: string | undefined, interactive: boolean): Promise<PrivacyStatus> {
+  if (flag !== undefined) {
+    if (!PRIVACY_VALUES.includes(flag as PrivacyStatus)) {
+      throw new Error(`--privacy must be one of: ${PRIVACY_VALUES.join(", ")}`);
+    }
+    return flag as PrivacyStatus;
+  }
+  if (!interactive) return "private";
+  const picked = await choose<PrivacyStatus>("Visibility of the uploaded video:", [
+    { label: "Private — only you can see it", value: "private" },
+    { label: "Unlisted — anyone with the link", value: "unlisted" },
+    { label: "Public — visible to everyone, subscribers are notified", value: "public" },
+  ]);
+  return picked ?? "private";
+}
+
 /**
- * Uploads a source file to the channel as a private video.
+ * Uploads a source file to the channel with the visibility the user picks.
  * Details, thumbnail and playlist are filled in afterwards by "apply".
  */
 export async function cmdUpload(args: string[]): Promise<void> {
   const { values, positionals } = parseArgs({
     args,
     allowPositionals: true,
-    options: { yes: { type: "boolean", short: "y", default: false } },
+    options: {
+      yes: { type: "boolean", short: "y", default: false },
+      privacy: { type: "string" },
+    },
   });
 
   const store = await loadStore();
@@ -77,10 +99,8 @@ export async function cmdUpload(args: string[]): Promise<void> {
   if (Math.round(file.fps) > MAX_PLAYBACK_FPS) {
     console.log(`Note: the file is ${Math.round(file.fps)} fps; YouTube will play it at ${MAX_PLAYBACK_FPS} fps at most.`);
   }
-  console.log(
-    "The video is uploaded as private. Until the API project passes YouTube's compliance audit,\n" +
-      "videos uploaded through the API stay locked as private and cannot be published.",
-  );
+  const privacy = await pickPrivacy(values.privacy, !values.yes);
+  console.log(`Visibility: ${privacy}. The title is the file name until you run "apply".`);
   if (!values.yes && !(await confirm("Upload this file?"))) {
     console.log("Cancelled, nothing was uploaded.");
     return;
@@ -94,7 +114,7 @@ export async function cmdUpload(args: string[]): Promise<void> {
       description: "",
       tags: [],
       recordingDate: file.recordedAt,
-      privacyStatus: "private",
+      privacyStatus: privacy,
     },
     { onProgress: createProgressPrinter() },
   );
