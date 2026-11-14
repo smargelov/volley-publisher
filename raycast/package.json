@@ -1,0 +1,109 @@
+{
+  "$schema": "https://www.raycast.com/schemas/extension.json",
+  "name": "volley-publisher",
+  "title": "Volley Publisher",
+  "description": "Fill in titles, descriptions, thumbnails and playlists for volleyball videos on your YouTube channel",
+  "icon": "icon.png",
+  "author": "smargelov",
+  "categories": [
+    "Media",
+    "Productivity"
+  ],
+  "license": "MIT",
+  "platforms": [
+    "macOS"
+  ],
+  "commands": [
+    {
+      "name": "videos",
+      "title": "Volley Videos",
+      "subtitle": "Volley Publisher",
+      "description": "Channel videos waiting for details, with thumbnail editor and publishing",
+      "mode": "view",
+      "keywords": [
+        "youtube",
+        "volleyball",
+        "video",
+        "thumbnail",
+        "publish"
+      ]
+    },
+    {
+      "name": "cleanup",
+      "title": "Clean Up Volley Sources",
+      "subtitle": "Volley Publisher",
+      "description": "Moves sources of finished videos to done and trashes those published long enough ago. Runs in the background.",
+      "mode": "no-view",
+      "interval": "6h",
+      "keywords": [
+        "youtube",
+        "volleyball",
+        "trash",
+        "done"
+      ]
+    }
+  ],
+  "preferences": [
+    {
+      "name": "defaultPrivacy",
+      "title": "Default Visibility",
+      "description": "Visibility a video gets when its details are saved to YouTube.",
+      "type": "dropdown",
+      "required": false,
+      "default": "unlisted",
+      "data": [
+        {
+          "title": "Unlisted (by link)",
+          "value": "unlisted"
+        },
+        {
+          "title": "Public",
+          "value": "public"
+        },
+        {
+          "title": "Private",
+          "value": "private"
+        }
+      ]
+    },
+    {
+      "name": "autoTrash",
+      "title": "Source Cleanup",
+      "label": "Move sources of published videos to the Trash",
+      "description": "Applies to files in the done folder whose videos are public and fully processed on YouTube.",
+      "type": "checkbox",
+      "required": false,
+      "default": true
+    },
+    {
+      "name": "retentionDays",
+      "title": "Keep Sources For (Days)",
+      "description": "How many days after publication a source file stays in the done folder.",
+      "type": "textfield",
+      "required": false,
+      "default": "3"
+    }
+  ],
+  "dependencies": {
+    "@raycast/api": "^2.7.3",
+    "@raycast/utils": "^2.3.2"
+  },
+  "devDependencies": {
+    "@raycast/eslint-config": "^2.2.0",
+    "@types/node": "^22.13.4",
+    "@types/react": "^19.0.8",
+    "esbuild": "^0.25.0",
+    "eslint": "^9.22.0",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2"
+  },
+  "scripts": {
+    "build:worker": "esbuild src/worker/index.ts --bundle --platform=node --target=node22 --format=cjs --outfile=assets/editor-worker.js --log-level=warning",
+    "prebuild": "npm run build:worker",
+    "build": "ray build -e dist",
+    "predev": "npm run build:worker",
+    "dev": "ray develop",
+    "fix-lint": "ray lint --fix",
+    "lint": "ray lint"
+  }
+}

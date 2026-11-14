@@ -1,0 +1,14 @@
+node_modules/
+dist/
+# OAuth credentials and tokens must never be committed
+client_secret*.json
+token.json
+.env
+.DS_Store
+# Scratch pages from thumbnail editor experiments
+tmp-pagetest/
+# Raycast extension
+raycast/node_modules/
+raycast/dist/
+# Personal files that are not part of the tool
+local/

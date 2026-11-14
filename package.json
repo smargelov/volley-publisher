@@ -1,0 +1,24 @@
+{
+  "name": "volley-publisher",
+  "version": "0.1.0",
+  "description": "Uploads volleyball videos to your YouTube channel and fills in titles, descriptions, thumbnails and playlists",
+  "type": "module",
+  "private": true,
+  "license": "MIT",
+  "bin": {
+    "volley": "./dist/cli/index.js"
+  },
+  "scripts": {
+    "volley": "tsx src/cli/index.ts",
+    "build": "tsc",
+    "type-check": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
